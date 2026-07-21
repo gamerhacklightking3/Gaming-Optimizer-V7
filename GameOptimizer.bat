@@ -1,35 +1,32 @@
 @echo off
 openfiles >nul 2>&1
 if %errorlevel% neq 0 (
-    color 0c
-    echo ==========================================================================
-    echo  ERROR: ADMINISTRATOR PRIVILEGES REQUIRED
-    echo  Please right-click this file and select 'Run as administrator'.
-    echo ==========================================================================
+    echo [!] ERROR: ADMINISTRATOR PRIVILEGES REQUIRED
+    echo [!] Please right-click this file and select 'Run as administrator'.
     pause
     exit /b
 )
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([ScriptBlock]::Create((Get-Content '%~f0' | Select-Object -Skip 13 | Out-String)))"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([ScriptBlock]::Create((Get-Content '%~f0' | Select-Object -Skip 10 | Out-String)))"
 exit /b
 
 # ==========================================================================
-#   ADVANCED GAMING OPTIMIZER & GPU DIAGNOSTIC (v7.0 - ULTIMATE EDITION)
+#   ADVANCED GAMING OPTIMIZER & GPU DIAGNOSTIC (v7.3 - ULTIMATE EDITION)
 # ==========================================================================
 
 function Show-Menu {
     Clear-Host
     Write-Host "==========================================================================" -ForegroundColor Cyan
-    Write-Host "   ADVANCED GAMING OPTIMIZER - MAIN MENU (v7.0 Ultimate)" -ForegroundColor Cyan
+    Write-Host "   ADVANCED GAMING OPTIMIZER - MAIN MENU (v7.3 Ultimate)" -ForegroundColor Cyan
     Write-Host "==========================================================================" -ForegroundColor Cyan
     Write-Host "   1. Run Full Automated Suite (~20 Second Complete PC Overhaul)"
-    Write-Host "   2. Scan GPU & Check Graphics Driver Health"
+    Write-Host "   2. Scan GPU & Direct Download Official Graphics Drivers"
     Write-Host "   3. Create System Restore Point (Safety Backup)"
-    Write-Host "   4. Process Killer & Disable Global Background Apps [ENHANCED]"
-    Write-Host "   5. Network Tweaks & Disable Nagle's Algorithm (Lower Ping) [NEW]"
-    Write-Host "   6. Telemetry Removal & Force Enable Windows Game Mode [NEW]"
-    Write-Host "   7. Services Optimizer (Disable SysMain/Search Stuttering) [NEW]"
-    Write-Host "   8. CPU/GPU MMCSS Priority & Ultimate Power Plan [NEW]"
-    Write-Host "   9. Input Latency (Disable Mouse Accel) & Visual Overhaul [NEW]"
+    Write-Host "   4. Process Killer & Disable Global Background Apps"
+    Write-Host "   5. Network Tweaks & Disable Nagle's Algorithm (Lower Ping)"
+    Write-Host "   6. Telemetry Removal & Force Enable Windows Game Mode"
+    Write-Host "   7. Services Optimizer (Disable SysMain/Search Stuttering)"
+    Write-Host "   8. CPU/GPU MMCSS Priority & Ultimate Power Plan"
+    Write-Host "   9. Input Latency (Disable Mouse Accel) & Visual Overhaul"
     Write-Host "  10. Memory & Disk Junk Cleanup (Clear Temp Files & Caches)"
     Write-Host "  11. Restore Default Windows Settings"
     Write-Host "  12. Exit Script"
@@ -37,41 +34,58 @@ function Show-Menu {
     Write-Host ""
 }
 
-function Write-Log {
-    param([string]$Message)
-    $logPath = "$env:USERPROFILE\Desktop\optimization_log.txt"
-    $timeStamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    "[$timeStamp] $Message" | Out-File -FilePath $logPath -Append -Encoding utf8
-}
-
 function Test-GpuDriver {
-    Write-Host "`n[!] Scanning Graphics Card and Driver Status..." -ForegroundColor Yellow
+    Write-Host "`n[!] Scanning Graphics Hardware and Driver Status..." -ForegroundColor Yellow
     Start-Sleep -Seconds 1
     
     $gpus = Get-CimInstance -ClassName Win32_VideoController -ErrorAction SilentlyContinue
+    $restartRequired = $false
 
     foreach ($gpu in $gpus) {
         $gpuName = $gpu.Name
+        $provider = $gpu.DriverProviderName
         Write-Host "Detected GPU: $gpuName" -ForegroundColor White
 
-        if ($gpuName -like "*Microsoft Basic Display Adapter*" -or $gpuName -like "*Microsoft Basic Render Driver*") {
-            Write-Host "`n==========================================================================" -ForegroundColor Red
-            Write-Host " [WARNING] NEED A GRAPHICS DRIVER!" -ForegroundColor Red
-            Write-Host " Your system is running on Microsoft's Basic Display Adapter." -ForegroundColor Red
-            Write-Host " Games will run with severe lag or fail to launch without official drivers.`n" -ForegroundColor Red
-            Write-Host " Download official drivers from:" -ForegroundColor Yellow
-            Write-Host " - NVIDIA: https://www.nvidia.com/Download/index.aspx"
-            Write-Host " - AMD:    https://www.amd.com/en/support"
-            Write-Host " - Intel:  https://www.intel.com/content/www/us/en/download-center/home.html"
-            Write-Host "==========================================================================" -ForegroundColor Red
-            Write-Log "GPU Scan: Generic driver detected on $gpuName."
+        $isGeneric = ($gpuName -like "*Microsoft Basic Display Adapter*" -or $gpuName -like "*Microsoft Basic Render Driver*" -or $provider -like "*Microsoft*")
+
+        if ($isGeneric) {
+            Write-Host "[!] Basic/Generic Microsoft driver detected!" -ForegroundColor Red
+            Write-Host " -> Rescanning system devices..." -ForegroundColor Yellow
+            pnputil /scan-devices | Out-Null
+
+            Write-Host " -> Directing to official GPU driver downloads..." -ForegroundColor Yellow
+            if ($gpuName -like "*NVIDIA*" -or (Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -like "*NVIDIA*" })) {
+                Start-Process "https://www.nvidia.com/Download/index.aspx"
+            } elseif ($gpuName -like "*AMD*" -or $gpuName -like "*Radeon*" -or (Get-CimInstance Win32_PnPEntity | Where-Object { $_.Name -like "*AMD*" -or $_.Name -like "*Radeon*" })) {
+                Start-Process "https://www.amd.com/en/support"
+            } else {
+                Start-Process "https://www.intel.com/content/www/us/en/download-center/home.html"
+            }
+            $restartRequired = $true
         } else {
-            Write-Host "[SUCCESS] Dedicated/Official Graphics Driver is active." -ForegroundColor Green
-            if ($gpuName -like "*NVIDIA*") { Write-Host " -> NVIDIA Driver Link: https://www.nvidia.com/Download/index.aspx" -ForegroundColor Gray }
-            if ($gpuName -like "*AMD*" -or $gpuName -like "*Radeon*") { Write-Host " -> AMD Driver Link: https://www.amd.com/en/support" -ForegroundColor Gray }
-            if ($gpuName -like "*Intel*") { Write-Host " -> Intel Driver Link: https://www.intel.com/content/www/us/en/download-center/home.html" -ForegroundColor Gray }
-            Write-Log "GPU Scan: Verified $gpuName."
+            Write-Host "[+] Official driver active ($gpuName - $provider)." -ForegroundColor Green
+            
+            # Offer manual update option even if driver is active
+            $response = Read-Host "Would you like to check for a newer driver on the vendor website? (Y/N)"
+            if ($response -eq "Y" -or $response -eq "y") {
+                if ($gpuName -like "*NVIDIA*") {
+                    Start-Process "https://www.nvidia.com/Download/index.aspx"
+                } elseif ($gpuName -like "*AMD*" -or $gpuName -like "*Radeon*") {
+                    Start-Process "https://www.amd.com/en/support"
+                } else {
+                    Start-Process "https://www.intel.com/content/www/us/en/download-center/home.html"
+                }
+            }
         }
+    }
+
+    if ($restartRequired) {
+        Write-Host "`n==========================================================================" -ForegroundColor Red
+        Write-Host " [ACTION REQUIRED] Official driver installation site opened." -ForegroundColor Red
+        Write-Host " Please download and install your official GPU drivers, then restart." -ForegroundColor Red
+        Write-Host "==========================================================================" -ForegroundColor Red
+    } else {
+        Write-Host "`n[+] GPU configuration check complete. No forced restart required." -ForegroundColor Green
     }
 }
 
@@ -81,7 +95,6 @@ function New-GamingRestorePoint {
         Enable-ComputerRestore -Drive "C:\" -ErrorAction SilentlyContinue
         Checkpoint-Computer -Description "Gaming Optimizer Backup v7" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
         Write-Host "[+] System Restore Point created successfully." -ForegroundColor Green
-        Write-Log "Created System Restore Point."
     } catch {
         Write-Host "[!] Restore Point skipped or unavailable on this system drive." -ForegroundColor Yellow
     }
@@ -93,13 +106,11 @@ function Optimize-BackgroundApps {
     $targets = @("GameBarPresenceWriter", "MicrosoftEdgeUpdate", "OneDrive", "Skype", "Cortana")
     foreach ($proc in $targets) { Stop-Process -Name $proc -Force -ErrorAction SilentlyContinue }
     
-    # Globally disable Windows background apps
     $bgPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications"
     if (-not (Test-Path $bgPath)) { New-Item -Path $bgPath -Force | Out-Null }
     Set-ItemProperty -Path $bgPath -Name "GlobalUserDisabled" -Value 1 -Type DWord -ErrorAction SilentlyContinue
     
     Write-Host "[+] Background apps cleared and permanently disabled." -ForegroundColor Green
-    Write-Log "Executed Aggressive Process Killer & Disabled UWP Background Apps."
     Start-Sleep -Seconds 2
 }
 
@@ -107,12 +118,10 @@ function Optimize-Network {
     Write-Host "`n[3/8] Applying Network Tweaks (Nagle's Algorithm & Throttling)..." -ForegroundColor Cyan
     Set-NetTCPSetting -SettingName "InternetCustom" -AutoTuningLevelLocal Normal -ErrorAction SilentlyContinue
     
-    # Disable Windows Network Throttling
     $sysProfile = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile"
     Set-ItemProperty -Path $sysProfile -Name "NetworkThrottlingIndex" -Value 0xFFFFFFFF -Type DWord -ErrorAction SilentlyContinue
     Set-ItemProperty -Path $sysProfile -Name "SystemResponsiveness" -Value 0 -Type DWord -ErrorAction SilentlyContinue
     
-    # Disable Nagle's Algorithm (Massive Ping Reduction)
     $interfaces = Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces' -ErrorAction SilentlyContinue
     foreach ($interface in $interfaces) {
         Set-ItemProperty -Path $interface.PSPath -Name "TCPNoDelay" -Value 1 -Type DWord -ErrorAction SilentlyContinue
@@ -121,7 +130,6 @@ function Optimize-Network {
     
     Clear-DnsClientCache -ErrorAction SilentlyContinue
     Write-Host "[+] Network latency minimized and DNS flushed." -ForegroundColor Green
-    Write-Log "Optimized TCP, disabled Nagle's Algorithm, and Network Throttling."
     Start-Sleep -Seconds 2
 }
 
@@ -130,38 +138,32 @@ function Optimize-Telemetry {
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Value 0 -Type DWord -ErrorAction SilentlyContinue
     Set-ItemProperty -Path "HKCU:\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
     
-    # Force Enable Game Mode
     $gameMode = "HKCU:\Software\Microsoft\GameBar"
     if (-not (Test-Path $gameMode)) { New-Item -Path $gameMode -Force | Out-Null }
     Set-ItemProperty -Path $gameMode -Name "AllowAutoGameMode" -Value 1 -Type DWord -ErrorAction SilentlyContinue
     
-    Set-Service -Name "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
     Stop-Service -Name "DiagTrack" -Force -ErrorAction SilentlyContinue
+    Set-Service -Name "DiagTrack" -StartupType Disabled -ErrorAction SilentlyContinue
     
     Write-Host "[+] Tracking disabled and Game Mode forced ON." -ForegroundColor Green
-    Write-Log "Disabled Windows Telemetry & Forced Auto Game Mode."
     Start-Sleep -Seconds 2
 }
 
 function Optimize-Services {
     Write-Host "`n[5/8] Disabling High-CPU Services (SysMain & Windows Search)..." -ForegroundColor Cyan
-    # Disabling SysMain (Superfetch) stops HDD/SSD 100% usage spikes while gaming
-    Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction SilentlyContinue
     Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
+    Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction SilentlyContinue
     
-    # Disabling WSearch reduces background disk indexing overhead
-    Set-Service -Name "WSearch" -StartupType Manual -ErrorAction SilentlyContinue
     Stop-Service -Name "WSearch" -Force -ErrorAction SilentlyContinue
+    Set-Service -Name "WSearch" -StartupType Manual -ErrorAction SilentlyContinue
     
     Write-Host "[+] Heavy background services stopped." -ForegroundColor Green
-    Write-Log "Disabled SysMain and WSearch Services."
     Start-Sleep -Seconds 2
 }
 
 function Set-GamingPowerPlan {
     Write-Host "`n[6/8] Configuring MMCSS Priority & Ultimate Power Scheme..." -ForegroundColor Cyan
     
-    # MMCSS Tweaks - Forces Windows to give Games Top Priority over background tasks
     $mmcss = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games"
     if (-not (Test-Path $mmcss)) { New-Item -Path $mmcss -Force | Out-Null }
     Set-ItemProperty -Path $mmcss -Name "GPU Priority" -Value 8 -Type DWord -ErrorAction SilentlyContinue
@@ -173,13 +175,11 @@ function Set-GamingPowerPlan {
     if ($LASTEXITCODE -ne 0) { powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c | Out-Null }
     
     Write-Host "[+] Game Task Scheduling and Power optimized." -ForegroundColor Green
-    Write-Log "Configured MMCSS Scheduling and Set Ultimate Power Plan."
     Start-Sleep -Seconds 2
 }
 
 function Optimize-InputAndVisuals {
     Write-Host "`n[7/8] Removing Mouse Acceleration & Adjusting Visual FX..." -ForegroundColor Cyan
-    # Disable "Enhance Pointer Precision" for raw mouse input (better aim)
     Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseSpeed" -Value "0" -ErrorAction SilentlyContinue
     Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold1" -Value "0" -ErrorAction SilentlyContinue
     Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseThreshold2" -Value "0" -ErrorAction SilentlyContinue
@@ -189,7 +189,6 @@ function Optimize-InputAndVisuals {
     Set-ItemProperty -Path $visualFXPath -Name "VisualFXSetting" -Value 2 -Type DWord -ErrorAction SilentlyContinue
     
     Write-Host "[+] Mouse Acceleration disabled. Animations optimized." -ForegroundColor Green
-    Write-Log "Disabled Mouse Acceleration and Optimized Visuals."
     Start-Sleep -Seconds 2
 }
 
@@ -202,7 +201,6 @@ function Clear-TempFiles {
         }
     }
     Write-Host "[+] Storage cleaned." -ForegroundColor Green
-    Write-Log "Cleared Temp Files."
     Start-Sleep -Seconds 2
 }
 
@@ -215,8 +213,7 @@ function Restore-Defaults {
     Set-ItemProperty -Path "HKCU:\Control Panel\Mouse" -Name "MouseSpeed" -Value "1" -ErrorAction SilentlyContinue
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" -Name "VisualFXSetting" -Value 0 -Type DWord -ErrorAction SilentlyContinue
     
-    Write-Host "Defaults restored. (A restart may be required for mouse settings)" -ForegroundColor Green
-    Write-Log "Restored Default Windows Settings."
+    Write-Host "[+] Defaults restored. (A restart may be required for mouse settings)" -ForegroundColor Green
     Pause
 }
 
